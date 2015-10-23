@@ -1,0 +1,23 @@
+Cyringe is a code injection program, based on a description of 
+Cymathoa. Cymathoa is described in an article on parasitic programs
+in phrack (http://www.phrack.org) issue #68.
+
+Cyringe uses a ptrace debugger technique to inject binary codes into
+a running process' memory space. The general flow of what it does is:
+* Attach to the host process as a debugger
+* Write the binary input to the hosts' memory at a specified location
+* Read the hosts' registers
+  - Write (%RIP - offset) to the address at (%RSP + 8)
+  - Write the location of your code to %RIP
+* Detach from the process
+
+We perform the first part of the third step in order to fake a
+function call to our code, and allow our parasite to be friendly
+(i.e. not completely kill the host). This step follows the conventions
+of the X86 C ABI. The offset is a command line argument such
+that you can force it to return to the instruction it was on before,
+because (%RIP) technically points to the *next* instruction not the
+current instruction. A good debugger can be used to figure out the
+correct offset for a given host.
+
+
