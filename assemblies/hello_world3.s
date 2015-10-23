@@ -9,6 +9,11 @@ _start:
   push %rbp
   mov %rsp, %rbp
 
+  push %rax
+  push %rdi
+  push %rsi
+  push %rdx
+
 
   # Now we are going to use a system call to output the message.
   # Syntax for this is:
@@ -17,9 +22,9 @@ _start:
   movb $0x01, %al
   # RDI is first input
   movb $0x01, %dil
-  # RSI is second input and should be a memory address
-  #mov $MSG, %rsi
-  call MSG
+
+  call end
+  .ascii "Hello neo...\12\0"
 
 end:
   pop %rsi
@@ -28,17 +33,12 @@ end:
   # Tell the os to call the routine
   syscall
 
-  # Now let's exit cleanly
-  #   exit(0)
-  mov $60, %rax
-  xor %rdi, %rdi
-  syscall
-
+  pop %rdx
+  pop %rsi
+  pop %rdi
+  pop %rax
+  pop %rbp
   ret
 
-
-MSG:
-  call end
-  .asciz "Hello neo...\12"
 
 
