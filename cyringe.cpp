@@ -59,29 +59,19 @@ unsigned long hextoint (string h) {
   return ret;
 }
 
-/*void readSCFile(string filename) {
-  ifstream ifs(filename.c_str(), ios_base::in | ios_base::binary);
-  char tmp[513];
-  int cnt = 0;
-
-  while (!ifs.eof()) {
-    ifs.read(tmp, 512);
-    cnt = (ifs.eof()) ? ifs.gcount()-1 : 512;
-    SHELLCODE += string(tmp).substr(0, cnt);
-  }
-}*/
+void allocateAndZeroShellcode(int size) {
+  SHELLCODE = (unsigned long *) malloc (size);
+  memset(SHELLCODE, 0x00, size);
+}
 
 void readSCFile(string filename) {
   ifstream ifs(filename.c_str(), ios_base::in | ios_base::binary | ios_base::ate);
   SCSIZE = ifs.tellg();
   ifs.seekg(ios::beg);
 
-  int arrSize = SCSIZE / sizeof(unsigned long) + 1;
-  cout << "arrSize: " << arrSize << endl;
+  int arraySize = SCSIZE / sizeof(unsigned long) + 1;
 
-  SHELLCODE = (unsigned long *) malloc (arrSize * sizeof(unsigned long));
-  memset(SHELLCODE, 0x00, arrSize * sizeof(unsigned long));
-  unsigned long * start = SHELLCODE;
+  allocateAndZeroShellcode(arraySize * sizeof(unsigned long));
 
   char buf[sizeof(unsigned long)];
   int cnt = 0;
@@ -96,14 +86,15 @@ void readSCFile(string filename) {
   ifs.seekg(0);
   ifs.close();
 
-  //SHELLCODE = start;
-  SHELLCODE -= arrSize;
+  SHELLCODE -= arraySize;
 }
 
 
 void writeword (unsigned long addr, unsigned long word) {
   int ret = -1;
   int iters = 0;
+
+  // This randomly fails to write data, but retries often succeed
   while (ret < 0 && iters < 5){
     ret = ptrace(PTRACE_POKEDATA, PID, addr, word);
     if (ret < 0)
@@ -118,10 +109,6 @@ void writeword (unsigned long addr, unsigned long word) {
       cout << "Detaching exited with errno: " << errno << endl;
     exit(1);
   }
-
-  /*int ret = ptrace(PTRACE_POKEDATA, PID, addr, word);
-  if (ret < 0)
-    cout << "Failed write with errno: " << errno << endl;*/
 }
 
 /**
@@ -174,12 +161,7 @@ void write_words () {
   int arrSize = SCSIZE / sizeof(unsigned long) + 1;
 
   // Write each word to the correct place
-  //for (int i=0; i<SHELLCODE.length(); i+=WORD_SIZE) {
   for (int i=0; i<arrSize; i++, SHELLCODE++) {
-    /*string sword = SHELLCODE.substr(i, WORD_SIZE);
-    toShift = (WORD_SIZE-sword.length())*8;
-    unsigned long *lword = (unsigned long*)(sword.c_str());
-    unsigned long word = *lword << toShift >> toShift;*/
     word = *SHELLCODE;
     cout << "Writing word: " << hex << word << dec << endl;
     writeword(ADDRESS+(i*WORD_SIZE), word);
