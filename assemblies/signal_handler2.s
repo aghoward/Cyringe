@@ -6,7 +6,55 @@
 
 .global _start
 
+# This begins our pre-amble, which remaps this space as rwx
 _start:
+    push %rbp
+    mov %rsp, %rbp
+
+    push %rdi
+    push %rsi
+    push %rdx
+
+    call doit
+
+mprotect:
+    push %rbp
+    mov %rsp, %rbp
+
+    # rsi = length = one page = 4096
+    xor %rsi, %rsi
+    movb $0x10, %sil
+    shl $0x08, %rsi
+
+    # rdx = protection
+    xor %rdx, %rdx
+    movb $0x07, %dl
+
+    # sys_mprotect = 10
+    xor %rax, %rax
+    movb $0x0a, %al
+
+    syscall
+
+    pop %rbp
+    ret
+
+doit:
+    pop %rdi
+    subb $0x0c, %dil
+    call mprotect
+
+    pop %rdx
+    pop %rsi
+    pop %rdi
+    pop %rbp
+##
+# End of preamble
+##
+
+
+# This starts the actual shellcode
+payload:
     # Save the hosts' stack
     push %rbp
     mov %rsp, %rbp
@@ -24,7 +72,9 @@ _start:
 
     # flags = SA_RESTORER | SA_RESTART
     xor %r8, %r8
-    mov $0x14000000, %r8
+    #mov $0x14000000, %r8
+    movb $0x14, %r8b
+    shl $0x18, %r8
     push %r8
 
     # Push the address of our handler function
@@ -75,6 +125,89 @@ restorer:
     movb $0x0f, %al
     syscall
 
+# This just marks a memory space where we will keep a pointer to the
+# message we will print on this pass
+msg:
+    pop %r8
+    call %r8
+    #.long $0x00
+    # We don't actually care what is here as long as it's not a null
+    # this is because this code will never be called
+    xor %rax, %rax
+    xor %rax, %rax
+    movb $0x01, %al
+
+# The first message we will end up printing
+msg_a:
+    pop %r8
+    call %r8
+    .ascii "Hello neo...\n"
+
+# Second message to print
+msg_b:
+    pop %r8
+    call %r8
+    .ascii "Follow the white rabbit.\n"
+
+# Sets all registers to allow printing msg_a
+load_msg_a:
+    xor %rdx, %rdx
+    xor %rsi, %rsi
+
+    # Get the address of the message
+    call msg_a
+    pop %r9
+
+    # Get the address of our pointer storage area
+    call msg
+    pop %r8
+
+    # Move a pointer to our msg (msg_a) into the storage area
+    mov %r9, (%r8)
+    # Copy our msg pointer to %rsi for syscall later
+    mov %r9, %rsi
+
+    # Set the length of our message to print
+    movb $0xd, %dl
+
+    ret
+
+# Pretty much the same as load_msg_a, but loads msg_b
+load_msg_b:
+    xor %rdx, %rdx
+    xor %rsi, %rsi
+
+    call msg_b
+    pop %r9
+
+    call msg
+    pop %r8
+
+    mov %r9, (%r8)
+    mov %r9, %rsi
+
+    movb $0x19, %dl
+
+    ret
+
+# This is always called to get the correct msg to load
+load_msg:
+    xor %r8, %r8
+    xor %r9, %r9
+
+    # Get a pointer to our pointer that is in storage
+    call msg
+    pop %r9
+    # Get a pointer to the first msg
+    call msg_a
+    pop %r8
+
+    # If the first msg is the same as our pointer in storage, load
+    # the second msg, else load the first msg
+    cmp %r8, (%r9)
+    je load_msg_b
+    jmp load_msg_a
+
 # Address of our handler function
 handler_addr:
     pop %r8
@@ -97,77 +230,3 @@ handler:
     syscall
 
     ret
-
-load_msg:
-    xor %r8, %r8
-    xor %r9, %r9
-
-    call msg
-    pop %r9
-    call msg_a
-    pop %r8
-
-    cmp %r8, (%r9)
-    je load_msg_b
-
-load_msg_a:
-    xor %rdx, %rdx
-    xor %rsi, %rsi
-
-    call msg_a
-    pop %r9
-
-    call msg
-    pop %r8
-
-    mov %r9, (%r8)
-    mov %r9, %rsi
-
-    call msg_a_len
-    mov %rax, %rdx
-
-    ret
-
-load_msg_b:
-    xor %rdx, %rdx
-    xor %rsi, %rsi
-
-    call msg_b
-    pop %r9
-
-    call msg
-    pop %r8
-
-    mov %r9, (%r8)
-    mov %r9, %rsi
-
-    call msg_b_len
-    mov %rax, %rdx
-
-    ret
-
-# The message we want to print
-msg_a:
-    pop %r8
-    call %r8
-    .asciz "Hello neo...\n"
-
-msg_b:
-    pop %r8
-    call %r8
-    .asciz "Follow the white rabbit.\n"
-
-msg_a_len:
-    mov $0xd, %rax
-    pop %r8
-    jmp %r8
-
-msg_b_len:
-    mov $0x19, %rax
-    pop %r8
-    jmp %r8
-
-msg:
-    pop %r8
-    call %r8
-    .long $0x00
