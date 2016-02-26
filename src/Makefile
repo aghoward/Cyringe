@@ -1,13 +1,22 @@
 GCC=g++
 FLAGS=-std=c++11 -g
+OBJDIR=./obj
 
-argconverters.o: argconverters.h argconverters.cpp
-	$(GCC) -c ${FLAGS} argconverters.cpp
+_OBJS=argconverters.o argstore.o argregistrar.o
+OBJS=$(patsubst %,${OBJDIR}/%,${_OBJS})
 
-argstore.o: argstore.h argstore.cpp
-	$(GCC) -c ${FLAGS} argstore.cpp
+argstore_tester: argstore_tester.cpp ${OBJS}
+	$(GCC) -o argstore_tester ${FLAGS} argstore_tester.cpp ${OBJS}
 
-argstore_tester: argstore_tester.cpp argstore.o argconverters.o
-	$(GCC) -o argstore_tester ${FLAGS} argstore_tester.cpp argconverters.o argstore.o
+clean:
+	rm ${OBJS}
+	rm argstore_tester
 
+${OBJDIR}/argconverters.o: argconverters.h argconverters.cpp
+	$(GCC) -c ${FLAGS} argconverters.cpp -o $@
 
+${OBJDIR}/argstore.o: argstore.h argstore.cpp
+	$(GCC) -c ${FLAGS} argstore.cpp -o $@
+
+${OBJDIR}/argregistrar.o: argregistrar.h argregistrar.cpp
+	$(GCC) -c ${FLAGS} argregistrar.cpp -o $@
